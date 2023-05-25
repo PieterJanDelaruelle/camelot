@@ -92,7 +92,3 @@ class ModelProcess(spawned_mp.Process):
         self.post(stop_request)
         self.join()
 
-    def __getstate__(self):
-        state = dict(self.__dict__)
-        del state['socket_notifier']
-        return state

@@ -29,7 +29,7 @@ from camelot.core.orm import EntityBase, Session
 from camelot.core.utils import ugettext_lazy as _
 from camelot.model.party import Person
 from camelot.test import (
-    GrabMixinCase, RunningThreadCase, RunningProcessCase, test_context,
+    GrabMixinCase, RunningThreadCase, test_context,
 )
 from camelot.test.action import MockModelContext
 from camelot.view import action_steps, import_utils, utils, gui_naming_context

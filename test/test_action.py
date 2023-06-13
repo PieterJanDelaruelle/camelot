@@ -90,7 +90,7 @@ class CustomAction(Action):
 custom_action_name = test_context.bind((CustomAction.name,), CustomAction())
 
 
-class ActionBaseCase(RunningThreadCase, SerializableMixinCase):
+class ActionBaseCase(RunningProcessCase, SerializableMixinCase):
 
     model_context_name = ('constant', 'null')
 
@@ -695,7 +695,7 @@ segmentation_fault_action_name = unit_test_context.bind(('segmentation_fault',),
 refresh_action_name = unit_test_context.bind(('refresh',), application_action.Refresh())
         
 class ApplicationActionsCase(
-    RunningThreadCase, GrabMixinCase, ExampleModelMixinCase
+    RunningProcessCase, GrabMixinCase, ExampleModelMixinCase
     ):
     """Test application actions.
     """

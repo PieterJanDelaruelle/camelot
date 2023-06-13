@@ -38,6 +38,7 @@ from . import gui_naming_context
 from camelot.admin.action.base import MetaActionStep
 from camelot.core.singleton import QSingleton
 from camelot.view.model_thread import post
+from .requests import InitiateAction
 from .responses import AbstractResponse
 
 LOGGER = logging.getLogger('camelot.view.action_runner')

@@ -78,6 +78,8 @@ class TaskHandler(QtCore.QObject):
                     request_type_name
                 )
                 request_type.execute(request_data, action_runner, self)
+            except SystemExit:
+                pass
             except Exception as e:
                 logger.fatal('Unhandled exception in model thread', exc_info=e)
             except:
@@ -128,6 +130,7 @@ class SignalSlotModelThread( AbstractModelThread ):
         self._request_queue.append(serialized_request)
         if not is_deleted(self):
             self.task_available.emit()
+        return ['thread', str(id(self))]
 
     @synchronized
     def stop( self ):

@@ -37,6 +37,7 @@ by Len Silverston, Chapter 2
 import copy
 import datetime
 import enum
+import re
 
 import sqlalchemy.types
 
@@ -52,6 +53,7 @@ from camelot.admin.action.list_filter import StringFilter
 from camelot.admin.action import list_filter
 from camelot.core.orm import Entity
 from camelot.core.utils import ugettext_lazy as _
+from camelot.data.types import zip_code_types
 import camelot.types
 from camelot.types.typing import Note
 from camelot.sql.types import IdentifyingUnicode, QuasiIdentifyingUnicode, first_letter_transform
@@ -233,7 +235,7 @@ class Country( GeographicBoundary ):
     class Admin(GeographicBoundary.Admin):
         verbose_name = _('Country')
         verbose_name_plural = _('Countries')
-        list_display = ['name', 'code']
+        list_display = ['id', 'name', 'code']
 
 class WithCountry(object):
     """
@@ -295,6 +297,14 @@ class City(GeographicBoundary, WithCountry):
     main_municipality_alternative_names = orm.relationship(GeographicBoundaryMainMunicipality, lazy='dynamic')
 
     __mapper_args__ = {'polymorphic_identity': 'city'}
+
+    @property
+    def zip_code_type(self):
+        if self.country is not None:
+            try:
+                return zip_code_types[self.country.code]
+            except KeyError:
+                return
 
     @hybrid.hybrid_method
     def main_municipality_name(self, language=None):
@@ -358,12 +368,19 @@ class City(GeographicBoundary, WithCountry):
     # TODO: refactor this to MessageEnum after move to vFinance repo.
     class Message(enum.Enum):
 
-        invalid_administrative_division = '{} is geen geldige administratieve indeling voor {}'
+        invalid_administrative_division = "{} is geen geldige administratieve indeling voor {}"
+        invalid_zip_code =                "{} is not a valid zip code for {}"
 
     def get_messages(self):
-        if None not in (self.country, self.administrative_division):
-            if self.country != self.administrative_division.country:
-                yield _(self.Message.invalid_administrative_division.value, self.administrative_division, self.country)
+        if self.country is not None:
+
+            if None not in (self.code, self.zip_code_type):
+                if not re.fullmatch(re.compile(self.zip_code_type.regex), self.code):
+                    yield _(self.Message.invalid_zip_code.value, self.code, self.country)
+
+            if self.administrative_division is not None:
+                if self.country != self.administrative_division.country:
+                    yield _(self.Message.invalid_administrative_division.value, self.administrative_division, self.country)
 
     @property
     def note(self) -> Note:
@@ -375,7 +392,7 @@ class City(GeographicBoundary, WithCountry):
         verbose_name = _('City')
         verbose_name_plural = _('Cities')
 
-        list_display = ['code', 'name', 'administrative_name', 'administrative_division', 'country']
+        list_display = ['id', 'code', 'name', 'administrative_name', 'administrative_division', 'country']
         form_display = Form(
             [GroupBoxForm(_('General'), ['name', None, 'code', None, 'country'], columns=2),
              GroupBoxForm(_('Administrative division'), ['administrative_division', None], columns=2),
@@ -446,6 +463,11 @@ class Address( Entity ):
         if self.city is not None and not self.city.code:
             self._zip_code = value
 
+    @property
+    def zip_code_type(self):
+        if self.city is not None:
+            return self.city.zip_code_type
+
     name = orm.column_property(sql.select(
         [street1 + ', ' + sql.func.coalesce(_zip_code, GeographicBoundary.code) + ' ' + GeographicBoundary.name],
         whereclause=(GeographicBoundary.id == city_geographicboundary_id)), deferred=True)
@@ -461,6 +483,11 @@ class Address( Entity ):
     def get_messages(self):
         if self.city is not None:
             yield from self.city.get_messages()
+
+            if None not in (self._zip_code, self.city.zip_code_type):
+                if not re.fullmatch(re.compile(self.city.zip_code_type.regex), self._zip_code):
+                    yield _(City.Message.invalid_zip_code.value, self._zip_code, self.city.country)
+
             if self.administrative_division is not None and self.city.country != self.administrative_division.country:
                 yield _(City.Message.invalid_administrative_division.value, self.administrative_division, self.city.country)
 
@@ -473,7 +500,7 @@ class Address( Entity ):
         verbose_name_plural = _('Addresses')
         list_display = ['street1', 'street2', 'city']
         form_display = ['street1', 'street2', 'zip_code', 'city', 'administrative_division']
-        form_size = ( 700, 150 )
+        form_state = 'right'
         field_attributes = {
             'street1': {'minimal_column_width':30},
             'zip_code': {'editable': lambda o: o.city is not None and not o.city.code},
@@ -497,7 +524,7 @@ def receive_city_set(target, city, oldvalue, initiator):
             target._administrative_division = None
 
 class PartyContactMechanismAdmin( EntityAdmin ):
-    form_size = ( 700, 200 )
+    form_state = 'right'
     verbose_name = _('Contact mechanism')
     verbose_name_plural = _('Contact mechanisms')
     list_display = ['party_name', 'mechanism', 'comment', 'from_date', ]
@@ -586,13 +613,23 @@ class WithAddresses(object):
                               ),
                           limit=1).as_scalar()
 
-    @property
+    @hybrid.hybrid_property
     def administrative_division(self):
         return self._get_address_field('administrative_division')
 
     @administrative_division.setter
     def administrative_division( self, value ):
         return self._set_address_field('administrative_division', value)
+
+    @administrative_division.expression
+    def administrative_division(cls):
+        GB = orm.aliased(GeographicBoundary)
+        return sql.select([GB.code + ' ' + GB.name],
+                          whereclause=sql.and_(
+                              GB.id==Address.administrative_division_id,
+                              cls.first_address_filter()
+                              ),
+                          limit=1).as_scalar()
 
     def get_first_address(self):
         raise NotImplementedError()
@@ -1103,7 +1140,7 @@ class PartyAddress( Entity, Addressable ):
         list_display = ['party_name', 'street1', 'street2', 'zip_code', 'city', 'comment']
         form_display = [ 'party', 'street1', 'street2', 'zip_code', 'city', 'comment', 
                          'from_date', 'thru_date']
-        form_size = ( 700, 200 )
+        form_state = 'right'
         field_attributes = dict(party_name=dict(editable=False, name='Party', minimal_column_width=30),
                                 zip_code=dict(editable=lambda o: o.city is not None and not o.city.code))
         
@@ -1155,7 +1192,7 @@ class ContactMechanism( Entity ):
             return u'%s : %s' % ( self.mechanism[0], self.mechanism[1] )
 
     class Admin( EntityAdmin ):
-        form_size = ( 700, 150 )
+        form_state = 'right'
         verbose_name = _('Contact mechanism')
         list_display = ['mechanism']
         form_display = Form( ['mechanism', 'party_address'] )
@@ -1263,7 +1300,7 @@ class PartyAdmin( EntityAdmin ):
     verbose_name_plural = _('Parties')
     list_display = ['name', 'email', 'phone'] # don't use full name, since it might be None for new objects
     form_display = ['addresses', 'contact_mechanisms']
-    form_size = (700, 700)
+    form_state = 'right'
     field_attributes = dict(addresses = {'admin':AddressAdmin},
                             contact_mechanisms = {'admin':PartyPartyContactMechanismAdmin},
                             sex = dict( choices = [( u'M', _('male') ), ( u'F', _('female') )], name=_('Gender')),

@@ -34,7 +34,7 @@ from .application import (
 )
 from .change_object import ChangeObject, ChangeObjects
 from .form_view import (OpenFormView, ToFirstForm, ToLastForm, ToNextForm,
-                        ToPreviousForm)
+                        ToPreviousForm, HighlightForm)
 from .gui import (
     CloseView, MessageBox, Refresh, SelectItem
 )
@@ -50,7 +50,7 @@ from .orm import (
 )
 from .select_file import SelectFile, SelectDirectory, SaveFile
 from .select_object import SelectObjects, SelectObject
-from .update_progress import UpdateProgress, PushProgressLevel, PopProgressLevel
+from .update_progress import UpdateProgress, PushProgressLevel, PopProgressLevel, SetProgressAnimate
 from .crud import (
     SetColumns, Completion, CompletionValue, Created, RowCount, Update, ChangeSelection
 )
@@ -79,6 +79,7 @@ __all__ = [
     NavigationPanel.__name__,
     OpenFile.__name__,
     OpenFormView.__name__,
+    HighlightForm.__name__,
     OpenStream.__name__,
     OpenString.__name__,
     OpenTableView.__name__,
@@ -109,6 +110,7 @@ __all__ = [
     UpdateProgress.__name__,
     PushProgressLevel.__name__,
     PopProgressLevel.__name__,
+    SetProgressAnimate.__name__,
     UpdateTableView.__name__,
     WordJinjaTemplate.__name__,
     ]

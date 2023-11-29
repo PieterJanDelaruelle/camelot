@@ -189,7 +189,7 @@ class SelectProfileMixin:
             # to avoid the use of subgenerators in the main action
             from camelot.view.action_steps.application import Exit
             yield Exit()
-            return
+            raise SystemExit()
         message = ugettext(u'Use {} profile'.format(selected_profile.name))
         yield action_steps.UpdateProgress(text=message)
         profile_store.set_last_profile(selected_profile)
@@ -399,6 +399,10 @@ class Exit( Action ):
     def model_run( self, model_context, mode ):
         from camelot.view.action_steps.application import Exit
         yield Exit()
+        raise SystemExit()
+
+exit_name = application_action_context.bind(Exit.name, Exit(), True)
+
        
 class SegmentationFault( Action ):
     """Create a segmentation fault by reading null, this is to test

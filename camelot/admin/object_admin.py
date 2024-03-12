@@ -41,6 +41,7 @@ from camelot.admin.action import field_action, list_filter
 from camelot.admin.action.list_action import OpenFormView
 from camelot.admin.action.form_action import CloseForm
 from camelot.admin.not_editable_admin import ReadOnlyAdminDecorator
+from camelot.core.exception import UserException
 from camelot.core.naming import initial_naming_context
 from camelot.core.orm import Entity, EntityMeta
 from camelot.view.utils import to_string
@@ -726,7 +727,8 @@ be specified using the verbose_name attribute.
             filter_strategy_overrulable = ('filter_strategy' not in forced_attributes) and (attributes['filter_strategy'] != list_filter.NoFilter)
             if 'choices' in forced_attributes:
                 from camelot.view.controls import delegates
-                attributes['delegate'] = delegates.ComboBoxDelegate
+                if 'delegate' not in forced_attributes:
+                    attributes['delegate'] = delegates.ComboBoxDelegate
                 if isinstance(forced_attributes['choices'], list):
                     choices_dict = dict(forced_attributes['choices'])
                     attributes['to_string'] = lambda x : str(choices_dict.get(x, ''))
@@ -936,12 +938,11 @@ be specified using the verbose_name attribute.
         """
         fields = {}
         # capture all properties
-        for cls in inspect.getmro(self.entity):
-            for desc_name, desc in cls.__dict__.items():
-                if desc_name.startswith('__'):
-                    continue
-                if len(self.get_descriptor_field_attributes(desc_name)):
-                    fields[desc_name] = self.get_field_attributes(desc_name)
+        for desc_name, _desc_value in inspect.getmembers(self.entity):
+            if desc_name.startswith('__'):
+                continue
+            if len(self.get_descriptor_field_attributes(desc_name)):
+                fields[desc_name] = self.get_field_attributes(desc_name)
         fields.update([(field, self.get_field_attributes(field)) for field in self.get_columns()])
         fields.update(self.get_fields())
         return fields
@@ -1071,6 +1072,7 @@ be specified using the verbose_name attribute.
 
     def delete(self, entity_instance):
         """Delete an entity instance"""
+        self.deletable_or_raise(entity_instance)
         del entity_instance
 
     def flush(self, entity_instance):
@@ -1116,8 +1118,32 @@ be specified using the verbose_name attribute.
         return new_entity_instance
 
     def is_editable(self):
-        """Default implementation always returns True"""
+        """
+        Return whether this admin globally allows instances being edited.
+        """
         return True
+
+    def is_obj_editable(self, obj):
+        """
+        Return whether the given instance may be edited within the context of this admin.
+        Defaults to True if this admin is globally editable, False otherwise.
+        """
+        return self.is_editable()
+
+    def is_obj_deletable(self, obj):
+        """
+        Return whether the given instance is allowed to be deleted within the context of this admin.
+        Defaults to True.
+        """
+        return True
+
+    def deletable_or_raise(self, obj):
+        """
+        Check the given instance is allowed to be deleted within the context of this
+        admin or raise a UserException otherwise.
+        """
+        if not self.is_obj_deletable(obj):
+            raise UserException(_('{} is not permitted to be deleted'), obj)
 
     def get_subsystem_object(self, obj):
         """Return the given object's applicable subsystem object."""

@@ -54,7 +54,10 @@ statuses as needed.
 """
 import datetime
 
-from sqlalchemy import inspection, orm, schema, sql, types, util
+from sqlalchemy import (
+    inspection, orm, schema, sql, types, type_coerce,
+    util,
+)
 from sqlalchemy.ext import hybrid
 from sqlalchemy.ext.declarative import declared_attr
 
@@ -264,7 +267,13 @@ class StatusMixin( object ):
 
     @current_status.expression
     def current_status( cls ):
-        return StatusMixin.current_status_query( cls._status_history, cls ).label( 'current_status' )
+        status_types = cls.status_types
+        if isinstance(status_types, util.OrderedProperties):
+            status_types = [(member.id, name) for name, member in cls.status_types.__members__.items()]
+        return type_coerce(
+            StatusMixin.current_status_query(cls._status_history, cls).label('current_status'),
+            Enumeration(status_types)
+            )
 
     def change_status(self, new_status, 
                       status_from_date=None,
@@ -388,7 +397,7 @@ class StatusFilter(list_filter.GroupBoxFilter, AbstractModelFilter):
         assert issubclass(entity_with_status, WithStatus)
         attribute = entity_with_status._status_history.classified_by
         self.joins = joins
-        super().__init__(attribute, default=default, verbose_name=verbose_name, exclusive=exclusive)
+        super().__init__(attribute, default=default, verbose_name=verbose_name, joins=joins, exclusive=exclusive)
 
     def get_strategy(self, attribute):
         history_type = attribute.class_

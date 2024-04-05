@@ -36,7 +36,7 @@ from ....core.qt import Qt, QtCore, QtWidgets, is_deleted
 from ....core.item_model import ActionModeRole
 from ... import gui_naming_context
 from ..view import ViewWithActionsMixin
-from camelot.view.qml_view import get_qml_root_backend
+from camelot.core.backend import get_root_backend
 from camelot.view.utils import get_settings_group
 from ..tableview import TableWidget
 from .wideeditor import WideEditor
@@ -87,7 +87,7 @@ class One2ManyEditor(CustomEditor, WideEditor, ViewWithActionsMixin, GuiContext)
             self.trigger_list_action
         )
         self.action_routes = dict()
-        model = get_qml_root_backend().createModel(get_settings_group(admin_route), table)
+        model = get_root_backend().create_model(get_settings_group(admin_route), table)
         model.actionStateChanged.connect(self.action_state_changed)
         table.setModel(model)
         self.admin_route = admin_route
@@ -218,9 +218,6 @@ class One2ManyEditor(CustomEditor, WideEditor, ViewWithActionsMixin, GuiContext)
                     table.setColumnWidth(i, txtwidth)
 
     def set_value(self, value):
-        value = CustomEditor.set_value(self, value)
-        #if collection is None:
-            #collection = ListModelProxy([])
         model = self.get_model()
         if model is not None:
             # even if the collection 'is' the same object as the current
@@ -241,7 +238,7 @@ class One2ManyEditor(CustomEditor, WideEditor, ViewWithActionsMixin, GuiContext)
         # close the editor to prevent certain Qt crashes
         table.close_editor()
         # make sure ChangeSelection action is executed before list action
-        table.model().onTimeout()
+        table.model().submit()
         self._run_list_context_action(self, None)
 
     @QtCore.qt_slot()

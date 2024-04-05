@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-import json
 import logging
 import typing
 
@@ -18,12 +17,12 @@ class AbstractResponse(NamedDataclassSerializable):
     """
 
     @classmethod
-    def _was_canceled(self, gui_context_name):
+    def _was_canceled(cls, gui_context_name):
         """raise a :class:`camelot.core.exception.CancelRequest` if the
         user pressed the cancel button of the progress dialog in the
         gui_context.
         """
-        from .qml_view import is_cpp_gui_context_name
+        from ..core.backend import is_cpp_gui_context_name
         if is_cpp_gui_context_name(gui_context_name):
             # @TODO : check was canceled for cpp
             return
@@ -42,31 +41,14 @@ class AbstractResponse(NamedDataclassSerializable):
             progress_dialog.reset()
             raise CancelRequest()
 
-    @classmethod
-    def handle_serialized_response(cls, serialized_response, post_method):
-        response_type_name, response_data = json.loads(serialized_response)
-        response_type = NamedDataclassSerializable.get_cls_by_name(
-            response_type_name
-        )
-        response_type.handle_response(response_data, post_method)
-
-    @classmethod
-    def handle_response(cls, response_data, post_method):
-        pass
 
 @dataclass
 class Busy(AbstractResponse):
-
     busy: bool
 
-    @classmethod
-    def handle_response(cls, response_data, post_method):
-        from .action_runner import action_runner
-        action_runner.busy.emit(response_data['busy'])
 
 @dataclass
 class ActionStepped(AbstractResponse):
-
     run_name: CompositeName
     gui_run_name: CompositeName
     blocking: bool
@@ -102,25 +84,6 @@ class ActionStepped(AbstractResponse):
 
 @dataclass
 class ActionStopped(AbstractResponse):
-
     run_name: CompositeName
     gui_run_name: CompositeName
     exception: typing.Any
-
-    @classmethod
-    def handle_response(cls, response_data, post_method):
-        gui_run_name = tuple(response_data['gui_run_name'])
-        try:
-            gui_run = gui_naming_context.resolve(gui_run_name)
-            gui_naming_context.unbind(gui_run_name)
-            action_name = gui_run.action_name
-            time_running = gui_run.time_running()
-        except NameNotFoundException:
-            LOGGER.error('Could not unbind gui_run {}'.format(gui_run_name))
-            action_name = 'unknown action'
-            time_running = 'unknown'
-        exception = response_data.get('exception')
-        if exception:
-            LOGGER.error('Stop {0} with exception {1}'.format(action_name, exception))
-        else:
-            LOGGER.debug('Stop {0}, took {1}'.format(action_name, time_running))
